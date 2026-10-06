@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MLB Superlatives</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <div class="hero">
+    <h1>MLB Superlatives</h1>
+    <p>Search by player, team, or metric.</p>
+    <input id="mainsearch" type="text" placeholder="Search..." oninput="refreshSearch(event)">
+  </div>
+  <div id="record-container">
+  </div>
+  <div id="templates" style="display:none">
+    <div id="record-item-template" class="record-item">
+      <img src="" class="player-picture" alt="player picture">
+      <div class="player-info">
+        <p class="player-name">
+          <a href="#" class="player-link"></a>
+        </p>
+        <p class="player-team"></p>
+        <div class="player-metric-container"></div>
+      </div>
+    </div>
+    <div id="player-metric-template" class="player-metric">
+      <p class="player-metric-description"></p>
+      <div class="player-metric-value-row">
+        <p class="player-metric-value"></p>
+        <p class="player-metric-pa"></p> <!-- plate appearances -->
+      </div>
+    </div>
+  </div>
+  <footer>
+    <p>&copy; <span id="ft-year"></span> <a href="kroljs.com" target="_blank" rel="noopener noreferrer">Jacob Krol</a></p>
+  </footer>
+</body>
+</html>
