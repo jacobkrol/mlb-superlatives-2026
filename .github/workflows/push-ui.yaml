@@ -1,0 +1,21 @@
+# when commit is pushed to main/superlativeui, copy contents of superlativeui to gh-pages branch and push to origin
+name: Push UI to GitHub Pages
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'superlativeui/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to gh-pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: superlativeui
