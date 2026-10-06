@@ -10,6 +10,8 @@ body {
   color: #333;
   padding: 20px;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 h1 {
@@ -138,13 +140,20 @@ input#mainsearch {
   }
 }
 
+#no-results-found {
+  font-size: 0.9rem;
+  color: #555;
+  padding-top: 20px;
+}
+
 footer {
   font-size: 12px;
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 40px;
+  margin-top: auto;
   margin-bottom: 0;
+  padding-top: 40px;
 }
 
 footer a {
