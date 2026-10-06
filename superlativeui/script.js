@@ -46,4 +46,9 @@ function refreshSearch(evt) {
     const isVisible = terms.every(term => text.includes(term));
     item.style.display = isVisible ? "" : "none";
   });
+  if (recordContainer.querySelectorAll(".record-item:not([style*='display: none'])").length === 0) {
+    document.querySelector("#no-results-found").style.display = "block";
+  } else {
+    document.querySelector("#no-results-found").style.display = "none";
+  }
 }
