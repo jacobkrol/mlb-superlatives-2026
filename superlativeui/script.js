@@ -21,12 +21,16 @@ document.onreadystatechange = function () {
             const record = player.records[i];
             const metricItem = metricItemTemplate.cloneNode(true);
             metricItem.id = "";
-            metricItem.querySelector(".player-metric-description").textContent = record.description;
-            const value = record.metric.match(/(_Rate|Avg_)/)?.length || ["AVG","OBP","SLG","OPS"].includes(record.metric)
-              ? record.value.toFixed(3)
-              : record.value;
+            const description = formatMetricName(record.description);
+            metricItem.querySelector(".player-metric-description").textContent = description;
+            let value = record.value;
+            if (record.metric.startsWith("Avg_") || ["AVG","OBP","SLG","OPS"].includes(record.metric)) {
+              value = record.value.toFixed(3);
+            } else if (record.metric.endsWith("_Rate")) {
+              value = (record.value * 100).toFixed(1) + "%";
+            }
             metricItem.querySelector(".player-metric-value").textContent = value;
-            metricItem.querySelector(".player-metric-pa").textContent = `(${record.plate_appearances} ${record.description.split(" ").length > 2 ? "applicable " : ""}PA)`;
+            metricItem.querySelector(".player-metric-pa").textContent = `(${record.plate_appearances} ${record.is_situational ? "applicable " : ""}PA)`;
 
             recordItem.querySelector(".player-metric-container").appendChild(metricItem);
           }
@@ -52,3 +56,29 @@ function refreshSearch(evt) {
     document.querySelector("#no-results-found").style.display = "none";
   }
 }
+
+function formatMetricName(description) {
+  // const metric_name_map = {
+  //   "Avg_PitchesSeen": "Avg Pitches Seen per PA",
+  //   "Avg_OutsGenerated": "Avg Outs Generated per PA",
+  //   "Highest Num_OutResult": "Most PAs Resulting in an Out",
+  //   "Lowest Num_OutResult": "Fewest PAs Resulting in an Out",
+  //   "OutResult_Rate": "Ratio of PAs Resulting in an Out",
+  //   "OutsGenerated_Rate": "Avg Outs Generated per PA",
+  //   "StrikeoutsLooking_Rate": "Ratio of Strikeouts that are Looking",
+  //   "StrikeoutsSwinging_Rate": "Ratio of Strikeouts that are Swinging",
+  //   "BuntAttempt_Rate": "Bunt Attempts per PA"
+  // };
+
+  // for (const [key, value] of Object.entries(metric_name_map)) {
+  //   description = description.replace(key, value);
+  // }
+  description = description.match(/Highest\sH($|\s)/)?.length
+    ? description.replace("Highest H", "Most Hits")
+    : description;
+  description = description.replace("Highest Num_", "Most ");
+  description = description.replace("Lowest Num_", "Fewest ");
+
+  return description;
+}
+

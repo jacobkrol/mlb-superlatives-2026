@@ -72,24 +72,14 @@ for player_file in os.listdir(playerdata_path):
 # Remove baserunning plays from the DB (until we decide to start using them by parsing the runner names from the play description)
 reduce_script = '''
 DELETE FROM play
-WHERE player_id IN (
-    WITH x AS (
-    SELECT 
-        player_id,
-        COUNT(*) AS PA
-    FROM play
-    WHERE pa_result_code NOT LIKE '%(BR)'
-    GROUP BY player_id
-    ) SELECT player_id FROM x WHERE PA < 25
-) OR pa_result_code LIKE '%(BR)'
-RETURNING player_id
+WHERE pa_result_code LIKE '%(BR)'
 '''
 
 cursor = conn.cursor()
 cursor.execute(reduce_script)
 deleted_plays = cursor.fetchall()
 
-print(f"Deleted {len(deleted_plays)} plays (batter with <25 PAs or baserunning-related)")
+print(f"Deleted {len(deleted_plays)} plays (baserunning-related)")
 
 conn.commit()
 

@@ -6,7 +6,15 @@ from pathlib import Path
 
 # define CTE to map plate appearance result codes to stat groupings
 SOURCE_CTE = """
-WITH source AS (
+WITH TotalPA as (
+    SELECT
+        COUNT(*) AS Num_PA,
+        player_id,
+        player_name
+    FROM play
+    WHERE pa_result_code NOT LIKE '%(BR)'
+    GROUP BY player_id, player_name
+), source AS (
     SELECT
         *,
         date(
@@ -144,7 +152,7 @@ METRICS = {
     "Triple_Rate": ("triples", "ab"),
     "Num_HomeRuns": ("home_runs", None),
     "HomeRun_Rate": ("home_runs", "ab"),
-    "Num_XHB": ("xbh", None),
+    "Num_XBH": ("xbh", None),
     "XBH_Rate": ("xbh", "ab"),
 
     "Num_Walks": ("walks", None),
@@ -172,7 +180,7 @@ METRICS = {
     "ErrorsReached_Rate": ("errors_reached", "ab"),
 
     "Num_SinglePlays": ("single_plays", None),
-    "SinglePlay_Rate": ("single_plays", "pa"),
+    "SinglePlay_Rate": ("single_plays", "ab"),
     "Num_DoublePlays": ("double_plays", None),
     "DoublePlay_Rate": ("double_plays", "ab"),
     "Num_TriplePlays": ("triple_plays", None),
@@ -203,113 +211,142 @@ METRICS = {
 QUALIFIERS = [
     {
         "at all game start times": ("1=1", 0),
-        "in day games": ("game_type LIKE 'Day Game%'", 1),
-        "in night games": ("game_type LIKE 'Night Game%'", 1)
+        "in day games": ("game_type LIKE 'Day Game%'", 5),
+        "in night games": ("game_type LIKE 'Night Game%'", 5)
     },
     {
         "anywhere": ("1=1", 0),
-        "at home": ("player_team = home_team", 1),
-        "when away": ("player_team = away_team", 1)
+        "at home": ("player_team = home_team", 4),
+        "when away": ("player_team = away_team", 4)
     },
     {
         "with any runner situation": ("1=1", 0),
-        "with bases empty": ("runners_on_base = '---'", 1),
-        "with RISP": ("runners_on_base LIKE '%2' OR runners_on_base LIKE '%3'", 1),
-        "with bases loaded": ("runners_on_base = '123'", 1)
+        "with bases empty": ("runners_on_base = '---'", 4),
+        "with RISP": ("runners_on_base LIKE '%2' OR runners_on_base LIKE '%3'", 4),
+        "with bases loaded": ("runners_on_base = '123'", 4)
     },
     {
         "with any count": ("1=1", 0),
-        "on first pitch": ("pitches_seen = 1", 1),
-        "on two strikes": ("count LIKE '%-2'", 1),
-        "on a full count": ("count = '3-2'", 1)
+        "on first pitch": ("pitches_seen = 1", 4),
+        "on two strikes": ("count LIKE '%-2'", 4),
+        "on a full count": ("count = '3-2'", 4)
     },
     {
         "on any surface": ("1=1", 0),
-        "on grass": ("game_type LIKE '%me on grass'", 2),
-        "on turf": ("game_type LIKE '%me on artificial turf'", 2)
+        "on grass": ("game_type LIKE '%me on grass'", 7),
+        "on turf": ("game_type LIKE '%me on artificial turf'", 7)
     },
     {
         "with any crowd": ("1=1", 0), # <20k, [20k-30k), >30k make a roughly 3-way split
-        "to small crowds": ("attendance > 0 AND attendance < 20000", 2), # "> 0" since 4 games lack attendance data and fallback to 0
-        "to median-sized crowds": ("attendance >= 20000 AND attendance < 30000", 2),
-        "to large crowds": ("attendance >= 30000", 2)
+        "to small crowds (< 20k)": ("attendance > 0 AND attendance < 20000", 11), # "> 0" since 4 games lack attendance data and fallback to 0
+        "to median-sized crowds (20k-30k)": ("attendance >= 20000 AND attendance < 30000", 11),
+        "to large crowds (> 30k)": ("attendance >= 30000", 11)
     },
     {
         "on any day of the week": ("1=1", 0),
-        "on weekdays": ("date NOT LIKE 'Saturday%' AND date NOT LIKE 'Sunday%'", 2),
-        "on weekends": ("date LIKE 'Saturday%' OR date LIKE 'Sunday%'", 2)
+        "on weekdays": ("date NOT LIKE 'Saturday%' AND date NOT LIKE 'Sunday%'", 5),
+        "on weekends": ("date LIKE 'Saturday%' OR date LIKE 'Sunday%'", 5)
     },
     {
         "in any inning": ("1=1", 0),
-        "in regulation innings": ("CAST(SUBSTR(inning, 2) AS INTEGER) <= 9", 1),
-        "in extra innings": ("CAST(SUBSTR(inning, 2) AS INTEGER) > 9", 1)
+        "in regulation innings": ("CAST(SUBSTR(inning, 2) AS INTEGER) <= 9", 5),
+        "in extra innings": ("CAST(SUBSTR(inning, 2) AS INTEGER) > 9", 5)
     },
     {
         "with any outs": ("1=1", 0),
-        "with no outs": ("outs = 0", 1),
-        "with one out": ("outs = 1", 2),
-        "with two outs": ("outs = 2", 1)
+        "with no outs": ("outs = 0", 4),
+        "with one out": ("outs = 1", 4),
+        "with two outs": ("outs = 2", 4)
     },
     {
         "throughout the year": ("1=1", 0),
-        "before the all star break": ("timestamp < '2026-07-12'", 1),
-        "after the all star break": ("timestamp > '2026-07-12'", 1)
+        "before the all star break": ("timestamp < '2026-07-12'", 4),
+        "after the all star break": ("timestamp > '2026-07-12'", 4)
     },
     {
         "in any game duration": ("1=1", 0), # <160, 160-180, 180+ make a roughly 3-way split
-        "in quick games": ("duration_minutes < 160", 2),
-        "in average length games": ("duration_minutes >= 160 AND duration_minutes < 180", 2),
-        "in long games": ("duration_minutes >= 180", 2)
+        "in quick games (<2:40)": ("duration_minutes < 160", 11),
+        "in average length games (2:40-3:00)": ("duration_minutes >= 160 AND duration_minutes < 180", 11),
+        "in long games (3:00+)": ("duration_minutes >= 180", 11)
     },
-    # {
-    #     "at any position": ("1=1", 0),
-    #     "as an infielder": ("defensive_positions LIKE '%1B%' OR defensive_positions LIKE '%2B%' OR defensive_positions LIKE '%3B%' OR defensive_positions LIKE '%SS%'", 2),
-    #     "as an outfielder": ("defensive_positions LIKE '%LF%' OR defensive_positions LIKE '%CF%' OR defensive_positions LIKE '%RF%'", 2),
-    #     "as a pitcher": ("defensive_positions LIKE '%P%'", 2),
-    #     "as a catcher": ("defensive_positions LIKE '%C%'", 2),
-    #     "as a designated hitter": ("defensive_positions LIKE '%DH%'", 2),
-    #     "as a pinch hitter": ("defensive_positions LIKE '%PH%'", 2)
-    # },
     {
         "at any position": ("1=1", 0),
-        "among infielders": ("position LIKE '%First Baseman%' OR position LIKE '%Second Baseman%' OR position LIKE '%Third Baseman%' OR position LIKE '%Shortstop%'", 2),
-        "among outfielders": ("position LIKE '%Leftfielder%' OR position LIKE '%Centerfielder%' OR position LIKE '%Rightfielder%' OR position LIKE '%Outfielder%'", 2),
-        "among pitchers": ("position LIKE '%Pitcher%'", 2),
-        "among catchers": ("position LIKE '%Catcher%'", 2),
-        "among designated hitters": ("position LIKE '%Designated Hitter%'", 2),
-        "among pinch hitters": ("position LIKE '%Pinch Hitter%'", 2)
+        "among infielders": ("position LIKE '%First Baseman%' OR position LIKE '%Second Baseman%' OR position LIKE '%Third Baseman%' OR position LIKE '%Shortstop%'", 5),
+        "among outfielders": ("position LIKE '%Leftfielder%' OR position LIKE '%Centerfielder%' OR position LIKE '%Rightfielder%' OR position LIKE '%Outfielder%'", 5),
+        "among pitchers": ("position LIKE '%Pitcher%'", 5),
+        "among catchers": ("position LIKE '%Catcher%'", 5),
+        "among designated hitters": ("position LIKE '%Designated Hitter%'", 5),
+        "among pinch hitters": ("position LIKE '%Pinch Hitter%'", 5)
     },
     {
         "with any score": ("1=1", 0),
-        "with a lead": ("runs_scored > runs_allowed", 1),
-        "in a run deficit": ("runs_scored < runs_allowed", 1),
-        "in a tied game": ("runs_scored = runs_allowed", 1),
-        "before the opponent has scored": ("runs_allowed = 0", 2),
-        "when slaughtering (leading 8+ runs)": ("runs_scored >= runs_allowed + 8", 2)
+        "with a lead": ("runs_scored > runs_allowed", 5),
+        "in a run deficit": ("runs_scored < runs_allowed", 5),
+        "in a tied game": ("runs_scored = runs_allowed", 5),
+        "before the opponent has scored": ("runs_allowed = 0", 5),
+        "when slaughtering (8+ runs)": ("runs_scored >= runs_allowed + 8", 5)
     },
     {
         "from any side of the plate": ("1=1", 0),
-        "among left-handed batters": ("bats = 'Left'", 1),
-        "among right-handed batters": ("bats = 'Right'", 1),
-        "among switch-hitters": ("bats = 'Both'", 1)
+        "among left-handed batters": ("bats = 'Left'", 5),
+        "among right-handed batters": ("bats = 'Right'", 5),
+        "among switch-hitters": ("bats = 'Both'", 5)
     },
     {
         "when born anywhere": ("1=1", 0),
-        "among American-born players": ("birthplace LIKE '% us'", 2),
-        "among foreign-born players": ("birthplace NOT LIKE '% us'", 2)
+        "among American-born players": ("birthplace LIKE '% us'", 5),
+        "among foreign-born players": ("birthplace NOT LIKE '% us'", 5)
     },
     {
         "among players with any height": ("1=1", 0),
-        "among tall players (6 feet or taller)": ("height >= 72", 3),
-        "among short kings (under 6 feet)": ("height < 72", 3)
+        "among tall players (at least 6')": ("height >= 72", 11),
+        "among short kings (under 6')": ("height < 72", 11)
+    },
+    {
+        "among all star signs": ("1=1", 0),
+        "among Aries": ("strftime('%m-%d', player.dob) BETWEEN '03-21' AND '04-19'", 7),
+        "among Tauruses": ("strftime('%m-%d', player.dob) BETWEEN '04-20' AND '05-20'", 7),
+        "among Geminis": ("strftime('%m-%d', player.dob) BETWEEN '05-21' AND '06-20'", 7),
+        "among Cancers": ("strftime('%m-%d', player.dob) BETWEEN '06-21' AND '07-22'", 7),
+        "among Leos": ("strftime('%m-%d', player.dob) BETWEEN '07-23' AND '08-22'", 7),
+        "among Virgos": ("strftime('%m-%d', player.dob) BETWEEN '08-23' AND '09-22'", 7),
+        "among Libras": ("strftime('%m-%d', player.dob) BETWEEN '09-23' AND '10-22'", 7),
+        "among Scorpios": ("strftime('%m-%d', player.dob) BETWEEN '10-23' AND '11-21'", 7),
+        "among Sagittariuses": ("strftime('%m-%d', player.dob) BETWEEN '11-22' AND '12-21'", 7),
+        "among Capricorns": ("(strftime('%m-%d', player.dob) >= '12-22' OR strftime('%m-%d', player.dob) <= '01-19')", 7),
+        "among Aquariuses": ("strftime('%m-%d', player.dob) BETWEEN '01-20' AND '02-18'", 7),
+        "among Pisces": ("strftime('%m-%d', player.dob) BETWEEN '02-19' AND '03-20'", 7)
     }
 ]
 
+situational_qualifier_groups = [
+    "at all game start times",
+    "anywhere",
+    "with any runner situation",
+    "with any count",
+    "on any surface",
+    "with any crowd",
+    "on any day of the week",
+    "in any inning",
+    "with any outs",
+    "throughout the year",
+    "in any game duration",
+    "with any score",
+]
 
+# for each qualifier group, if the first option is present in situational_qualifier_groups, then the entire group is situational. 
+# This is used to determine whether a given leaderboard row is situational or not.
+# create list of all situational phrases from situational_qualifier_groups
+situational_groups = [group for group in QUALIFIERS if list(group.keys())[0] in situational_qualifier_groups]
+situational_phrases = [phrase for group in situational_groups for phrase in group.keys()]
+# situational_phrases = [phrase for phrase in situational_qualifier_groups if phrase in [option for group in qualifier_groups for option in group]]
 
 #
 # Create query
 #
+
+MIN_PA = 340 # Baseball Savant defines "Qualified" hitter as 2.1 PA per team game, which is 2.1 * 162 = 340.2 PA in a season.
+
 base_query = SOURCE_CTE + """
 SELECT
 \tsource.player_id,
@@ -325,18 +362,18 @@ for metric_name, (numerator, denominator) in METRICS.items():
     else:
         columns.append(f"\tSUM({numerator}) * 1.0 / SUM({denominator}) AS {metric_name}")
 
-base_query += ",\n".join(columns) + """,
+base_query += ",\n".join(columns) + f""",
 \tMAX(player.bats) AS bats,
 \tMAX(player.birthplace) AS birthplace,
 \tMAX(player.height) AS height,
-\tMAX(player.position) AS position
+\tMAX(player.position) AS position,
+\tplayer.dob AS dob
 FROM source
 LEFT JOIN player ON source.player_id = player.player_id
-WHERE 1=1
-"""
+INNER JOIN TotalPA ON source.player_id = TotalPA.player_id
+WHERE 1=1 AND TotalPA.Num_PA >= {MIN_PA}
+""" 
 
-# print(base_query)
-# raise Exception("Debug: base_query generated")
 
 interesting_min_metrics = [
     "Avg_OutsGenerated",
@@ -433,12 +470,22 @@ DB_PATH = "mlb.db"
 with sqlite3.connect(DB_PATH) as conn:
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT DISTINCT
-            player_id,
-            player_name
-        FROM play
-        ORDER BY player_id
+    cursor.execute(f"""
+        WITH TotalPA AS (
+            SELECT
+                player_id,
+                COUNT(*) AS num_pa
+            FROM play
+            WHERE pa_result_code NOT LIKE '%(BR)'
+            GROUP BY player_id
+        )
+        SELECT
+            player.player_id,
+            player.player_name
+        FROM player
+        INNER JOIN TotalPA ON player.player_id = TotalPA.player_id
+        WHERE TotalPA.num_pa >= {MIN_PA}
+        ORDER BY player.player_id
     """)
 
     all_players = {
@@ -511,7 +558,8 @@ with sqlite3.connect(DB_PATH) as conn:
             query += """
     GROUP BY
         source.player_id,
-        source.player_name
+        source.player_name,
+        player.dob
     """
 
             # Execute query.
@@ -539,8 +587,13 @@ with sqlite3.connect(DB_PATH) as conn:
                 qualifier_phrase = ", ".join(
                     combination["phrases"]
                 )
+                is_situational = any(
+                    phrase in situational_phrases
+                    for phrase in combination["phrases"]
+                )
             else:
                 qualifier_phrase = ""
+                is_situational = False
 
             # ------------------------------------------------------------
             # Find leaders for all metrics in a single pass through results
@@ -654,7 +707,8 @@ with sqlite3.connect(DB_PATH) as conn:
                             "description": description,
                             "complexity": combination["complexity"],
                             "plate_appearances": leader.get("PA", 0),
-                            "at_bats": leader.get("AB", 0)
+                            "at_bats": leader.get("AB", 0),
+                            "is_situational": is_situational
                         })
 
                         players_found.add(
@@ -704,7 +758,8 @@ with sqlite3.connect(DB_PATH) as conn:
                             "description": description,
                             "complexity": combination["complexity"],
                             "plate_appearances": leader.get("PA", 0),
-                            "at_bats": leader.get("AB", 0)
+                            "at_bats": leader.get("AB", 0),
+                            "is_situational": is_situational
                         })
 
                         players_found.add(
@@ -731,7 +786,8 @@ with output_path.open(
             "description",
             "complexity",
             "plate_appearances",
-            "at_bats"
+            "at_bats",
+            "is_situational"
         ]
     )
 
